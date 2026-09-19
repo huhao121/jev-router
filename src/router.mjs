@@ -7,6 +7,7 @@ import {
   THRESHOLDS,
 } from "./config.mjs";
 import { log } from "./log.mjs";
+import { evaluateVercel } from "./vercel.mjs";
 
 // The SDK's defaults (10s per attempt, 2 retries, no total budget) are far too slow for a
 // per-prompt hot path, so the timeout, retry count and an outer deadline are all pinned.
@@ -33,7 +34,9 @@ export async function askJev({ prompt, current, contextTokens, models }) {
   if (!models?.length) return null;
   const started = Date.now();
   const abort = new AbortController();
-  const deadline = setTimeout(() => abort.abort(), THRESHOLDS.jevDeadlineMs);
+  const useVercel = process.env.JEV_PROVIDER === "vercel" ||
+    (!process.env.JEV_PROVIDER && !!process.env.AI_GATEWAY_API_KEY);
+  const deadline = setTimeout(() => abort.abort(), useVercel ? 15000 : THRESHOLDS.jevDeadlineMs);
   const request = {
     state: {
       request: prompt,
@@ -43,12 +46,15 @@ export async function askJev({ prompt, current, contextTokens, models }) {
     questions: { ...QUESTIONS, model: questionForModels(models) },
   };
   try {
-    const result = await getClient().systemOne(request, { signal: abort.signal });
+    const result = useVercel
+      ? await evaluateVercel(request, abort.signal)
+      : await getClient().systemOne(request, { signal: abort.signal });
     const { model: answer, task_complexity, reasoning_required, tool_complexity } = result.answers;
     return {
       ...answer,
       request,
       response: result,
+      confidenceSource: result.confidenceSource ?? "typesafe-native",
       metrics: {
         taskComplexity: task_complexity.score / COMPLEXITY_MAX_SCORE,
         reasoningRequired: reasoning_required.score / COMPLEXITY_MAX_SCORE,
@@ -58,7 +64,7 @@ export async function askJev({ prompt, current, contextTokens, models }) {
       ms: Date.now() - started,
     };
   } catch (err) {
-    log(`routing failed, keeping ${current}: ${err.message}`);
+    log(`routing failed, keeping ${current}: ${err.name ?? "Error"} (status ${err.statusCode ?? "unknown"})`);
     return null;
   } finally {
     clearTimeout(deadline);

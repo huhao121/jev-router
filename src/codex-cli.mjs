@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CODEX_AUTO_MODEL, startCodexProxy } from "./codex-proxy.mjs";
+import { readCodexProvider } from "./codex-provider.mjs";
 
 const PROVIDER = "jev";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -51,7 +52,7 @@ export function resolveCodex() {
   return null;
 }
 
-export const codexArgs = (baseURL, args) => [
+export const codexArgs = (baseURL, args, customProvider = false) => [
   ...(args.some((arg) => arg === "--model" || arg === "-m" || arg.startsWith("--model="))
     ? []
     : ["--model", CODEX_AUTO_MODEL]),
@@ -64,7 +65,8 @@ export const codexArgs = (baseURL, args) => [
   "--config",
   `model_providers.${PROVIDER}.wire_api="responses"`,
   "--config",
-  `model_providers.${PROVIDER}.requires_openai_auth=true`,
+  `model_providers.${PROVIDER}.requires_openai_auth=${!customProvider}`,
+  ...(customProvider ? ["--config", `model_providers.${PROVIDER}.env_key="JEV_CODEX_UPSTREAM_KEY"`] : []),
   "--config",
   `model_providers.${PROVIDER}.supports_websockets=false`,
   ...args,
@@ -93,10 +95,16 @@ export async function runCodex() {
   let close = () => {};
   const statusId = `codex-${process.pid}`;
   process.env.JEV_CODEX_STATUS_ID = statusId;
-  if (process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY) {
-    const proxy = await startCodexProxy({ statusId });
+  if (process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY || process.env.AI_GATEWAY_API_KEY) {
+    let provider;
+    try { provider = readCodexProvider(); }
+    catch (err) { process.stderr.write(`[jev] ${err.message}\n`); process.exitCode = 1; return; }
+    const proxy = await startCodexProxy({ statusId, ...(provider ? {
+      chatgptBaseURL: provider.baseURL, apiBaseURL: provider.baseURL,
+    } : {}) });
+    if (provider) process.env.JEV_CODEX_UPSTREAM_KEY = provider.key;
     close = proxy.close;
-    args = codexArgs(`http://127.0.0.1:${proxy.port}`, args);
+    args = codexArgs(`http://127.0.0.1:${proxy.port}`, args, !!provider);
   } else {
     process.stderr.write(
       "[jev] no JEV_API_KEY found - starting Codex without routing\n" +

@@ -34,7 +34,7 @@
     "typesafe"
   ],
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22"
   },
   "publishConfig": {
     "access": "public",
@@ -42,6 +42,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@typesafe-ai/sdk": "^0.6.0"
+    "@typesafe-ai/sdk": "^0.6.0",
+    "ai": "7.0.105",
+    "smol-toml": "1.8.0"
   }
 }

@@ -140,8 +140,9 @@ export const upstreamFor = (
   apiBaseURL = API_BASE_URL,
 ) => /\/models(?:\?|$)/.test(path) || headers["chatgpt-account-id"] ? chatgptBaseURL : apiBaseURL;
 
-export function jevDecisionEvents({ tier, model = codexModelOf(tier), confidence, reason }) {
-  const detail = confidence == null ? reason : `${reason}, confidence ${confidence.toFixed(2)}`;
+export function jevDecisionEvents({ tier, model = codexModelOf(tier), confidence, confidenceSource, reason }) {
+  const label = confidenceSource?.startsWith("gateway-") ? "distribution concentration" : "confidence";
+  const detail = confidence == null ? reason : `${reason}, ${label} ${confidence.toFixed(2)}`;
   const id = `jev-${randomUUID()}`;
   const text = reason.startsWith("jev-unavailable")
     ? `[Jev] unavailable; using ${model}. Add JEV_API_KEY=... to ~/.jev-router.env and restart jev-codex.`
@@ -221,6 +222,7 @@ export async function startCodexProxy({
                 tier,
                 model,
                 confidence: jev?.confidence ?? null,
+                confidenceSource: jev?.confidenceSource ?? null,
                 metrics: jev?.metrics ?? null,
                 reason: decision.reason,
                 jev: jev ? { request: jev.request, response: jev.response } : null,
