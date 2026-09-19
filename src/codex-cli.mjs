@@ -95,7 +95,7 @@ export async function runCodex() {
   let close = () => {};
   const statusId = `codex-${process.pid}`;
   process.env.JEV_CODEX_STATUS_ID = statusId;
-  if (process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY || process.env.AI_GATEWAY_API_KEY) {
+  if (process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY || process.env.AI_GATEWAY_API_KEY || process.env.OPENROUTER_API_KEY) {
     let provider;
     try { provider = readCodexProvider(); }
     catch (err) { process.stderr.write(`[jev] ${err.message}\n`); process.exitCode = 1; return; }

@@ -83,7 +83,7 @@ export const isCodexAuxiliaryPrompt = (prompt) =>
 /** User text that starts a new Codex turn, or null for tool continuations. */
 export function codexNewTurnPrompt(body) {
   if (!Array.isArray(body?.input)) return null;
-  if (!body.input.some((item) => item?.type === "additional_tools")) return null;
+  if (!body.input.some((item) => item?.type === "additional_tools") && !body.tools?.length) return null;
   for (const item of [...body.input].reverse()) {
     if (item?.type === "function_call_output" || item?.type === "custom_tool_call_output") return null;
     if (item?.role !== "user") continue;

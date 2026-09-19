@@ -8,6 +8,7 @@ import {
 } from "./config.mjs";
 import { log } from "./log.mjs";
 import { evaluateVercel } from "./vercel.mjs";
+import { evaluateOpenRouter } from "./openrouter.mjs";
 
 // The SDK's defaults (10s per attempt, 2 retries, no total budget) are far too slow for a
 // per-prompt hot path, so the timeout, retry count and an outer deadline are all pinned.
@@ -36,7 +37,8 @@ export async function askJev({ prompt, current, contextTokens, models }) {
   const abort = new AbortController();
   const useVercel = process.env.JEV_PROVIDER === "vercel" ||
     (!process.env.JEV_PROVIDER && !!process.env.AI_GATEWAY_API_KEY);
-  const deadline = setTimeout(() => abort.abort(), useVercel ? 15000 : THRESHOLDS.jevDeadlineMs);
+  const useOpenRouter = process.env.JEV_PROVIDER === "openrouter";
+  const deadline = setTimeout(() => abort.abort(), useOpenRouter ? 20000 : useVercel ? 15000 : THRESHOLDS.jevDeadlineMs);
   const request = {
     state: {
       request: prompt,
@@ -46,7 +48,9 @@ export async function askJev({ prompt, current, contextTokens, models }) {
     questions: { ...QUESTIONS, model: questionForModels(models) },
   };
   try {
-    const result = useVercel
+    const result = useOpenRouter
+      ? await evaluateOpenRouter(request, abort.signal)
+      : useVercel
       ? await evaluateVercel(request, abort.signal)
       : await getClient().systemOne(request, { signal: abort.signal });
     const { model: answer, task_complexity, reasoning_required, tool_complexity } = result.answers;
